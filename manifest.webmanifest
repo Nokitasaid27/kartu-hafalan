@@ -1,0 +1,10 @@
+{
+  "name": "Kartu Hafalan Al-Qur'an",
+  "short_name": "Kartu Hafalan",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7faf8",
+  "theme_color": "#0f6b45",
+  "lang": "id",
+  "description": "Kartu hafalan Al-Qur'an untuk Jamaah dan Pembimbing."
+}
