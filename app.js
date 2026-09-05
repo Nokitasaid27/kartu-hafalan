@@ -31,8 +31,7 @@ function layout(content,title="Kartu Hafalan",sub="Al-Qur'an"){
     </div></header>${content}</div>`;
 }
 function footer(active){
- return `<nav class="footer-nav"><div class="footer-nav-inner">
-  <button class="${active==="home"?"active":""}" onclick="mainMenu()">🏠<br>Beranda</button>
+ return `<nav class="footer-nav"><div class="footer-nav-inner single">
   <button class="${active==="settings"?"active":""}" onclick="settings()">⚙️<br>Pengaturan</button>
  </div></nav>`;
 }
