@@ -11,11 +11,30 @@ const SURAT = [
 
 const KEY="kartu-hafalan-v1-data";
 let db=JSON.parse(localStorage.getItem(KEY)||"null")||{
-  mode:null, identity:"", font:"normal", view:"table", currentIndex:0,
-  statuses:{}, jamaah:[]
+  mode:null, font:"normal",
+  profiles:{
+    jamaah:{identity:"",view:"table",currentIndex:0,statuses:{}},
+    pembimbing:{identity:"",jamaah:[]}
+  }
 };
 
+// Migrasi data dari V1.0-V1.3 agar data lama tidak hilang saat struktur penyimpanan diperbaiki.
+function migrateData(){
+  db.profiles=db.profiles||{};
+  if(!db.profiles.jamaah) db.profiles.jamaah={identity:"",view:"table",currentIndex:0,statuses:{}};
+  if(!db.profiles.pembimbing) db.profiles.pembimbing={identity:"",jamaah:[]};
+  if(db.identity && db.mode==="jamaah" && !db.profiles.jamaah.identity) db.profiles.jamaah.identity=db.identity;
+  if(db.mode==="jamaah" && db.statuses && Object.keys(db.statuses).length && !Object.keys(db.profiles.jamaah.statuses||{}).length) db.profiles.jamaah.statuses=db.statuses;
+  if(db.mode==="jamaah" && typeof db.view==="string") db.profiles.jamaah.view=db.view;
+  if(db.mode==="jamaah" && Number.isInteger(db.currentIndex)) db.profiles.jamaah.currentIndex=db.currentIndex;
+  if(db.identity && db.mode==="pembimbing" && !db.profiles.pembimbing.identity) db.profiles.pembimbing.identity=db.identity;
+  if(Array.isArray(db.jamaah) && !db.profiles.pembimbing.jamaah.length) db.profiles.pembimbing.jamaah=db.jamaah;
+  // Bentuk lama tetap diterima, tetapi seluruh perubahan baru ditulis ke profiles.
+}
+migrateData();
+
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function profile(){return db.mode==="jamaah"?db.profiles.jamaah:db.profiles.pembimbing}
 function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function setFont(){
   const sizes={normal:"18px",large:"22px",xlarge:"26px"};
@@ -40,8 +59,8 @@ function render(){
  setFont();
  const root=document.getElementById("app");
  if(!db.mode) return welcome();
- if(db.mode==="jamaah" && !db.identity) return identity("jamaah");
- if(db.mode==="pembimbing" && !db.identity) return identity("pembimbing");
+ if(db.mode==="jamaah" && !db.profiles.jamaah.identity) return identity("jamaah");
+ if(db.mode==="pembimbing" && !db.profiles.pembimbing.identity) return identity("pembimbing");
  if(db.mode==="jamaah") return jamaahHome();
  return pembimbingHome();
 }
@@ -57,39 +76,40 @@ function welcome(){
    </div>
  </div></main>`;
 }
-function chooseMode(m){db.mode=m;db.identity="";save();render()}
+function chooseMode(m){db.mode=m;save();render()}
 function identity(m){
  const label=m==="jamaah"?"Nama Jamaah":"Nama Pembimbing";
+ const savedName=db.profiles[m].identity||"";
  document.getElementById("app").innerHTML=layout(`<main>
- <button class="back" onclick="db.mode=null;db.identity='';save();render()">← Kembali</button>
+ <button class="back" onclick="db.mode=null;save();render()">← Kembali</button>
  <div class="card"><h1>${label}</h1>
-  <div class="field"><label for="identity">${label}</label><input id="identity" placeholder="${m==="jamaah"?"Contoh: Ibu Siti":"Contoh: Ustadz Ahmad"}"></div>
+  <div class="field"><label for="identity">${label}</label><input id="identity" value="${esc(savedName)}" placeholder="${m==="jamaah"?"Contoh: Ibu Siti":"Contoh: Ustadz Ahmad"}"></div>
   <button class="btn btn-primary" style="width:100%" onclick="startIdentity()">MULAI</button>
  </div></main>`);
 }
 function startIdentity(){
  const v=document.getElementById("identity").value.trim();
  if(!v){alert("Silakan isi nama terlebih dahulu.");return}
- db.identity=v;
- if(db.mode==="pembimbing" && !db.jamaah) db.jamaah=[];
+ profile().identity=v;
  save();render();
 }
 
 function jamaahHome(){
- const map=db.statuses||{};
+ const p=db.profiles.jamaah, map=p.statuses||{};
  document.getElementById("app").innerHTML=layout(`<main>
-  <div class="toolbar"><div class="grow"><div class="screen-title">Kartu Hafalan</div><div class="muted">${esc(db.identity)} · Juz 30</div></div></div>
+  <div class="toolbar"><div class="grow"><div class="screen-title">Kartu Hafalan</div><div class="muted">${esc(p.identity)} · Juz 30</div></div></div>
   <div class="card">
    <div class="info-strip"><b>Catatan pribadi</b><br><span class="small">Status dapat Anda ubah sesuai catatan setoran Anda.</span></div>
    ${cardControls()}
-   ${db.view==="table"?tableView(map):largeView(map)}
+   ${p.view==="table"?tableView(map):largeView(map)}
   </div>
  </main>${footer("home")}`);
 }
 function cardControls(){
+ const p=db.profiles.jamaah;
  return `<div class="segment">
-  <button class="${db.view==="table"?"active":""}" onclick="db.view='table';save();render()">Tabel</button>
-  <button class="${db.view==="large"?"active":""}" onclick="db.view='large';save();render()">Tampilan Besar</button>
+  <button class="${p.view==="table"?"active":""}" onclick="db.profiles.jamaah.view='table';save();render()">Tabel</button>
+  <button class="${p.view==="large"?"active":""}" onclick="db.profiles.jamaah.view='large';save();render()">Tampilan Besar</button>
  </div>`;
 }
 function tableView(map){
@@ -100,7 +120,7 @@ function tableView(map){
  </tr>`}).join("")}</tbody></table></div>`;
 }
 function largeView(map){
- const i=Math.max(0,Math.min(SURAT.length-1,db.currentIndex||0)), s=SURAT[i], st=statusFor(map,i);
+ const i=Math.max(0,Math.min(SURAT.length-1,db.profiles.jamaah.currentIndex||0)), s=SURAT[i], st=statusFor(map,i);
  return `<div class="large-card">
   <div class="large-index">${i+1} dari ${SURAT.length}</div>
   <div class="large-name">${esc(s[0])}</div>
@@ -110,15 +130,15 @@ function largeView(map){
  </div>`;
 }
 function toggleStatus(i,st){
- db.statuses=db.statuses||{};
- db.statuses[i]=db.statuses[i]===st?"":st;
- db.currentIndex=i;save();render();
+ const p=db.profiles.jamaah; p.statuses=p.statuses||{};
+ p.statuses[i]=p.statuses[i]===st?"":st;
+ p.currentIndex=i;save();render();
 }
-function moveCurrent(d){db.currentIndex=Math.max(0,Math.min(SURAT.length-1,(db.currentIndex||0)+d));save();render()}
+function moveCurrent(d){const p=db.profiles.jamaah;p.currentIndex=Math.max(0,Math.min(SURAT.length-1,(p.currentIndex||0)+d));save();render()}
 
 function pembimbingHome(){
  document.getElementById("app").innerHTML=layout(`<main>
-  <div class="toolbar"><div class="grow"><div class="screen-title">Daftar Jamaah</div><div class="muted">${esc(db.identity)}</div></div></div>
+  <div class="toolbar"><div class="grow"><div class="screen-title">Daftar Jamaah</div><div class="muted">${esc(db.profiles.pembimbing.identity)}</div></div></div>
   <div class="card">
    <div class="field"><input id="search" placeholder="🔎 Cari jamaah..." oninput="filterJamaah(this.value)"></div>
    <div id="jamaah-list">${jamaahList("")}</div>
@@ -127,7 +147,7 @@ function pembimbingHome(){
  </main>${footer("home")}`);
 }
 function jamaahList(q){
- const arr=(db.jamaah||[]).filter(x=>x.name.toLowerCase().includes(q.toLowerCase()));
+ const arr=(db.profiles.pembimbing.jamaah||[]).filter(x=>x.name.toLowerCase().includes(q.toLowerCase()));
  if(!arr.length)return `<div class="empty">Belum ada jamaah.</div>`;
  return `<div class="list">${arr.map((x,i)=>`<button class="list-item" onclick="openJamaah(${i})">
   <div class="avatar">${initials(x.name)}</div><div class="grow"><b>${esc(x.name)}</b><div class="small muted">Juz 30</div></div><div>›</div>
@@ -145,12 +165,12 @@ function addJamaah(){
 function createJamaah(){
  const name=document.getElementById("new-name").value.trim();
  if(!name){alert("Silakan isi nama jamaah.");return}
- db.jamaah=db.jamaah||[];
- db.jamaah.push({name,statuses:{},view:"table",currentIndex:0});
+ const p=db.profiles.pembimbing; p.jamaah=p.jamaah||[];
+ p.jamaah.push({name,statuses:{},view:"table",currentIndex:0});
  save();render();
 }
 function openJamaah(i){
- const x=db.jamaah[i];
+ const x=db.profiles.pembimbing.jamaah[i];
  document.getElementById("app").innerHTML=layout(`<main>
   <div class="toolbar"><button class="back" onclick="render()">← Daftar Jamaah</button><div class="grow"></div></div>
   <div class="card">
@@ -180,9 +200,9 @@ function mentorLarge(x,idx){
  <button class="status-btn ${st==="lanjut"?"selected-green":""}" onclick="mentorStatus(${idx},${i},'lanjut')">${st==="lanjut"?"✓ ":""}LANJUT</button>
  <div class="nav-buttons"><button class="btn btn-outline" onclick="mentorMove(${idx},-1)">‹ Sebelumnya</button><button class="btn btn-outline" onclick="mentorMove(${idx},1)">Berikutnya ›</button></div></div>`;
 }
-function setMentorView(i,v){db.jamaah[i].view=v;save();openJamaah(i)}
-function mentorStatus(j,i,st){db.jamaah[j].statuses=db.jamaah[j].statuses||{};db.jamaah[j].statuses[i]=db.jamaah[j].statuses[i]===st?"":st;db.jamaah[j].currentIndex=i;save();openJamaah(j)}
-function mentorMove(j,d){db.jamaah[j].currentIndex=Math.max(0,Math.min(SURAT.length-1,(db.jamaah[j].currentIndex||0)+d));save();openJamaah(j)}
+function setMentorView(i,v){db.profiles.pembimbing.jamaah[i].view=v;save();openJamaah(i)}
+function mentorStatus(j,i,st){const x=db.profiles.pembimbing.jamaah[j];x.statuses=x.statuses||{};x.statuses[i]=x.statuses[i]===st?"":st;x.currentIndex=i;save();openJamaah(j)}
+function mentorMove(j,d){const x=db.profiles.pembimbing.jamaah[j];x.currentIndex=Math.max(0,Math.min(SURAT.length-1,(x.currentIndex||0)+d));save();openJamaah(j)}
 
 function settings(){
  document.getElementById("app").innerHTML=layout(`<main>
@@ -218,7 +238,6 @@ function mainMenu(){
   // Kembali ke menu awal untuk memilih mode Jamaah atau Pembimbing.
   // Data kartu tetap tersimpan; hanya mode aktif yang di-reset.
   db.mode=null;
-  db.identity="";
   save();
   render();
 }

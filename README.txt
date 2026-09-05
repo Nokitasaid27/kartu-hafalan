@@ -1,4 +1,4 @@
-KARTU HAFALAN AL-QUR'AN - V1.3
+KARTU HAFALAN AL-QUR'AN - V1.4
 ===============================
 
 Prototipe PWA offline-first.
@@ -22,4 +22,6 @@ Catatan:
 - Daftar surat mencakup Al-Fatihah + surat Juz 30 (78-114), mengikuti urutan pada formulir yang difoto.
 
 
-V1.3: Tampilan tabel mobile diperbaiki agar kolom Ulang dan Lanjut selalu terlihat tanpa geser horizontal; menu Beranda di dalam mode dihilangkan.
+V1.4: Tampilan tabel mobile diperbaiki agar kolom Ulang dan Lanjut selalu terlihat tanpa geser horizontal; menu Beranda di dalam mode dihilangkan.
+
+V1.4: Data JAMAAH dan PEMBIMBING disimpan terpisah dan tetap tersimpan saat aplikasi dibuka kembali. Service worker diperbarui agar update aplikasi lebih cepat.
