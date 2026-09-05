@@ -87,3 +87,19 @@ tr:last-child td{border-bottom:0}
  th:nth-child(2),td:nth-child(2){width:auto;overflow-wrap:anywhere}
  .status-dot{width:38px;height:38px}
 }
+
+.surat-cell{vertical-align:middle}
+.ayat-wrap{margin-top:5px}
+.ayat-input{min-height:38px;width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:9px;background:#fbfdfc;color:var(--text);font-size:.85em}
+.ayat-input:focus{outline:3px solid #b8d9c7;outline-offset:1px}
+.large-ayat{max-width:360px;margin:0 auto 12px;display:block;text-align:center;min-height:48px;font-size:1em}
+.block-setting{align-items:center}
+@media(max-width:560px){
+ .ayat-input{min-height:40px;font-size:.84em}
+ th:first-child,td:first-child{width:42px}
+ th:nth-child(3),td:nth-child(3),th:nth-child(4),td:nth-child(4){width:58px}
+}
+
+
+/* V1.8 - tambah surat langsung di bawah kartu */
+.add-surat-area{margin-top:18px;text-align:center;padding-top:14px;border-top:1px dashed #c8d5cf}.add-surat-btn{width:100%;min-height:54px;font-weight:800;font-size:calc(var(--fs) * .95)}.add-surat-hint{margin-top:8px;line-height:1.45}
