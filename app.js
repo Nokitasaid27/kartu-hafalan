@@ -11,6 +11,7 @@ const SURAT = [
 
 const KEY="kartu-hafalan-v1-data";
 let db=JSON.parse(localStorage.getItem(KEY)||"null")||{
+  surat:SURAT.map(x=>[x[0],x[1]]),
   mode:null, font:"normal",
   profiles:{
     jamaah:{identity:"",view:"table",currentIndex:0,statuses:{}},
@@ -20,6 +21,7 @@ let db=JSON.parse(localStorage.getItem(KEY)||"null")||{
 
 // Migrasi data dari V1.0-V1.3 agar data lama tidak hilang saat struktur penyimpanan diperbaiki.
 function migrateData(){
+  if(!Array.isArray(db.surat)||!db.surat.length) db.surat=SURAT.map(x=>[x[0],x[1]]);
   db.profiles=db.profiles||{};
   if(!db.profiles.jamaah) db.profiles.jamaah={identity:"",view:"table",currentIndex:0,statuses:{}};
   if(!db.profiles.pembimbing) db.profiles.pembimbing={identity:"",jamaah:[]};
@@ -41,6 +43,8 @@ function setFont(){
   document.documentElement.style.setProperty("--fs",sizes[db.font]||sizes.normal);
 }
 function statusFor(map,i){return map[i]||""}
+function suratList(){return db.surat||SURAT}
+function suratLabel(){return suratList().length===SURAT.length?"Juz 30":"Juz 30 + Surat Tambahan"}
 function initials(name){return (name||"?").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase()}
 
 function layout(content,title="Kartu Hafalan",sub="Al-Qur'an"){
@@ -97,7 +101,7 @@ function startIdentity(){
 function jamaahHome(){
  const p=db.profiles.jamaah, map=p.statuses||{};
  document.getElementById("app").innerHTML=layout(`<main>
-  <div class="toolbar"><div class="grow"><div class="screen-title">Kartu Hafalan</div><div class="muted">${esc(p.identity)} · Juz 30</div></div></div>
+  <div class="toolbar"><div class="grow"><div class="screen-title">Kartu Hafalan</div><div class="muted">${esc(p.identity)} · ${suratLabel()}</div></div></div>
   <div class="card">
    <div class="info-strip"><b>Catatan pribadi</b><br><span class="small">Status dapat Anda ubah sesuai catatan setoran Anda.</span></div>
    ${cardControls()}
@@ -114,15 +118,15 @@ function cardControls(){
 }
 function tableView(map){
  return `<div class="table-wrap"><table><thead><tr><th style="width:52px">No</th><th>Nama Surat</th><th class="center">Ulang</th><th class="center">Lanjut</th></tr></thead><tbody>
- ${SURAT.map((s,i)=>{let st=statusFor(map,i);return `<tr><td>${i+1}</td><td>${esc(s[0])}</td>
+ ${suratList().map((s,i)=>{let st=statusFor(map,i);return `<tr><td>${i+1}</td><td>${esc(s[0])}</td>
  <td class="center"><button class="status-dot ${st==="ulang"?"on-red":""}" aria-label="Ulang ${esc(s[0])}" onclick="toggleStatus(${i},'ulang')">${st==="ulang"?"✓":""}</button></td>
  <td class="center"><button class="status-dot ${st==="lanjut"?"on-green":""}" aria-label="Lanjut ${esc(s[0])}" onclick="toggleStatus(${i},'lanjut')">${st==="lanjut"?"✓":""}</button></td>
  </tr>`}).join("")}</tbody></table></div>`;
 }
 function largeView(map){
- const i=Math.max(0,Math.min(SURAT.length-1,db.profiles.jamaah.currentIndex||0)), s=SURAT[i], st=statusFor(map,i);
+ const i=Math.max(0,Math.min(suratList().length-1,db.profiles.jamaah.currentIndex||0)), s=suratList()[i], st=statusFor(map,i);
  return `<div class="large-card">
-  <div class="large-index">${i+1} dari ${SURAT.length}</div>
+  <div class="large-index">${i+1} dari ${suratList().length}</div>
   <div class="large-name">${esc(s[0])}</div>
   <button class="status-btn ${st==="ulang"?"selected-red":""}" onclick="toggleStatus(${i},'ulang')">${st==="ulang"?"✓ ":""}ULANG</button>
   <button class="status-btn ${st==="lanjut"?"selected-green":""}" onclick="toggleStatus(${i},'lanjut')">${st==="lanjut"?"✓ ":""}LANJUT</button>
@@ -134,7 +138,7 @@ function toggleStatus(i,st){
  p.statuses[i]=p.statuses[i]===st?"":st;
  p.currentIndex=i;save();render();
 }
-function moveCurrent(d){const p=db.profiles.jamaah;p.currentIndex=Math.max(0,Math.min(SURAT.length-1,(p.currentIndex||0)+d));save();render()}
+function moveCurrent(d){const p=db.profiles.jamaah;p.currentIndex=Math.max(0,Math.min(suratList().length-1,(p.currentIndex||0)+d));save();render()}
 
 function pembimbingHome(){
  document.getElementById("app").innerHTML=layout(`<main>
@@ -150,7 +154,7 @@ function jamaahList(q){
  const arr=(db.profiles.pembimbing.jamaah||[]).filter(x=>x.name.toLowerCase().includes(q.toLowerCase()));
  if(!arr.length)return `<div class="empty">Belum ada jamaah.</div>`;
  return `<div class="list">${arr.map((x,i)=>`<button class="list-item" onclick="openJamaah(${i})">
-  <div class="avatar">${initials(x.name)}</div><div class="grow"><b>${esc(x.name)}</b><div class="small muted">Juz 30</div></div><div>›</div>
+  <div class="avatar">${initials(x.name)}</div><div class="grow"><b>${esc(x.name)}</b><div class="small muted">${suratLabel()}</div></div><div>›</div>
  </button>`).join("")}</div>`;
 }
 function filterJamaah(q){const el=document.getElementById("jamaah-list");if(el)el.innerHTML=jamaahList(q)}
@@ -174,7 +178,7 @@ function openJamaah(i){
  document.getElementById("app").innerHTML=layout(`<main>
   <div class="toolbar"><button class="back" onclick="render()">← Daftar Jamaah</button><div class="grow"></div></div>
   <div class="card">
-   <div class="screen-title">Kartu Hafalan</div><div class="muted">${esc(x.name)} · Juz 30</div>
+   <div class="screen-title">Kartu Hafalan</div><div class="muted">${esc(x.name)} · ${suratLabel()}</div>
    ${jamaahCardForMentor(x,i)}
   </div>
  </main>${footer("home")}`);
@@ -189,20 +193,20 @@ function jamaahCardForMentor(x,idx){
 }
 function mentorTable(x,idx){
  return `<div class="table-wrap"><table><thead><tr><th>No</th><th>Nama Surat</th><th class="center">Ulang</th><th class="center">Lanjut</th></tr></thead><tbody>
- ${SURAT.map((s,i)=>{let st=statusFor(x.statuses||{},i);return `<tr><td>${i+1}</td><td>${esc(s[0])}</td>
+ ${suratList().map((s,i)=>{let st=statusFor(x.statuses||{},i);return `<tr><td>${i+1}</td><td>${esc(s[0])}</td>
  <td class="center"><button class="status-dot ${st==="ulang"?"on-red":""}" onclick="mentorStatus(${idx},${i},'ulang')">${st==="ulang"?"✓":""}</button></td>
  <td class="center"><button class="status-dot ${st==="lanjut"?"on-green":""}" onclick="mentorStatus(${idx},${i},'lanjut')">${st==="lanjut"?"✓":""}</button></td></tr>`}).join("")}</tbody></table></div>`;
 }
 function mentorLarge(x,idx){
- const i=Math.max(0,Math.min(SURAT.length-1,x.currentIndex||0)),s=SURAT[i],st=statusFor(x.statuses||{},i);
- return `<div class="large-card"><div class="large-index">${i+1} dari ${SURAT.length}</div><div class="large-name">${esc(s[0])}</div>
+ const i=Math.max(0,Math.min(suratList().length-1,x.currentIndex||0)),s=suratList()[i],st=statusFor(x.statuses||{},i);
+ return `<div class="large-card"><div class="large-index">${i+1} dari ${suratList().length}</div><div class="large-name">${esc(s[0])}</div>
  <button class="status-btn ${st==="ulang"?"selected-red":""}" onclick="mentorStatus(${idx},${i},'ulang')">${st==="ulang"?"✓ ":""}ULANG</button>
  <button class="status-btn ${st==="lanjut"?"selected-green":""}" onclick="mentorStatus(${idx},${i},'lanjut')">${st==="lanjut"?"✓ ":""}LANJUT</button>
  <div class="nav-buttons"><button class="btn btn-outline" onclick="mentorMove(${idx},-1)">‹ Sebelumnya</button><button class="btn btn-outline" onclick="mentorMove(${idx},1)">Berikutnya ›</button></div></div>`;
 }
 function setMentorView(i,v){db.profiles.pembimbing.jamaah[i].view=v;save();openJamaah(i)}
 function mentorStatus(j,i,st){const x=db.profiles.pembimbing.jamaah[j];x.statuses=x.statuses||{};x.statuses[i]=x.statuses[i]===st?"":st;x.currentIndex=i;save();openJamaah(j)}
-function mentorMove(j,d){const x=db.profiles.pembimbing.jamaah[j];x.currentIndex=Math.max(0,Math.min(SURAT.length-1,(x.currentIndex||0)+d));save();openJamaah(j)}
+function mentorMove(j,d){const x=db.profiles.pembimbing.jamaah[j];x.currentIndex=Math.max(0,Math.min(suratList().length-1,(x.currentIndex||0)+d));save();openJamaah(j)}
 
 function settings(){
  document.getElementById("app").innerHTML=layout(`<main>
@@ -218,11 +222,35 @@ function settings(){
    </div>
    <div class="setting-row"><div><b>Backup Data</b><div class="small muted">Simpan salinan data.</div></div><button class="btn btn-secondary" onclick="backup()">Backup</button></div>
    <div class="setting-row"><div><b>Restore Data</b><div class="small muted">Kembalikan dari file backup.</div></div><button class="btn btn-secondary" onclick="document.getElementById('restore-file').click()">Restore</button></div>
+   <div class="setting-row"><div><b>Tambah Surat</b><div class="small muted">Tambahkan surat di luar daftar Juz 30.</div></div><button class="btn btn-secondary" onclick="addSurat()">＋ Tambah</button></div>
    <div class="setting-row"><div><b>Reset Data</b><div class="small muted">Hapus semua data aplikasi.</div></div><button class="btn btn-danger" onclick="resetData()">Reset</button></div>
   </div>
   <input id="restore-file" type="file" accept=".json,application/json" style="display:none" onchange="restore(event)">
  </main>${footer("settings")}`);
 }
+function addSurat(){
+ document.getElementById("app").innerHTML=layout(`<main>
+ <button class="back" onclick="settings()">← Kembali</button>
+ <div class="card"><h1>Tambah Surat</h1>
+  <p class="muted">Surat baru akan ditambahkan di bagian paling bawah daftar hafalan pada perangkat ini.</p>
+  <div class="field"><label>Nama Surat</label><input id="new-surat-name" placeholder="Contoh: Yasin"></div>
+  <div class="field"><label>Nomor Surat (opsional)</label><input id="new-surat-number" type="number" min="1" max="114" placeholder="Contoh: 36"></div>
+  <button class="btn btn-primary" style="width:100%" onclick="createSurat()">TAMBAH SURAT</button>
+ </div></main>`);
+}
+function createSurat(){
+ const name=document.getElementById("new-surat-name").value.trim();
+ const numberRaw=document.getElementById("new-surat-number").value.trim();
+ if(!name){alert("Silakan isi nama surat.");return}
+ const number=numberRaw?Number(numberRaw):null;
+ if(number!==null && (!Number.isInteger(number)||number<1||number>114)){alert("Nomor surat harus antara 1 sampai 114.");return}
+ const list=suratList();
+ if(list.some(x=>x[0].toLowerCase()===name.toLowerCase())){alert("Surat tersebut sudah ada.");return}
+ list.push([name,number]);
+ db.surat=list;save();settings();
+ alert("Surat berhasil ditambahkan.");
+}
+
 function setFontSize(f){db.font=f;save();render()}
 function backup(){
  const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
