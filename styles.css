@@ -103,3 +103,8 @@ tr:last-child td{border-bottom:0}
 
 /* V1.8 - tambah surat langsung di bawah kartu */
 .add-surat-area{margin-top:18px;text-align:center;padding-top:14px;border-top:1px dashed #c8d5cf}.add-surat-btn{width:100%;min-height:54px;font-weight:800;font-size:calc(var(--fs) * .95)}.add-surat-hint{margin-top:8px;line-height:1.45}
+
+/* V1.9 - tombol instalasi PWA */
+.install-area{margin-top:18px;padding-top:16px;border-top:1px dashed #c8d5cf}
+.install-btn{width:100%;min-height:56px;font-weight:850}
+.install-hint{margin-top:8px;line-height:1.45}

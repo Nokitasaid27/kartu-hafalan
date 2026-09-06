@@ -1,7 +1,15 @@
-KARTU HAFALAN AL-QUR'AN - V1.3
+KARTU HAFALAN AL-QUR'AN - V1.9
 ===============================
 
 Prototipe PWA offline-first.
+
+V1.9:
+- Tombol "PASANG KARTU HAFALAN" pada layar pembuka.
+- Menggunakan prompt instalasi PWA bila browser mendukung.
+- Manifest dilengkapi icon 192x192 dan 512x512.
+- Data JAMAAH dan PEMBIMBING tetap terpisah seperti V1.4.
+- Fitur Tambah Surat & Ayat dari V1.8 dipertahankan.
+- Cache service worker dinaikkan ke v1-9.
 
 File:
 - index.html
@@ -9,22 +17,7 @@ File:
 - app.js
 - manifest.webmanifest
 - sw.js
+- icons/icon-192.png
+- icons/icon-512.png
 
-Cara uji paling mudah:
-1. Buka index.html di browser untuk uji fungsi dasar.
-2. Untuk instal sebagai PWA/offline penuh, host folder ini pada HTTPS atau localhost.
-3. Data disimpan di localStorage browser.
-4. Backup/Restore menggunakan file JSON.
-
-Catatan:
-- Mode Jamaah dan Pembimbing benar-benar terpisah.
-- Tidak ada sinkronisasi.
-- Daftar surat mencakup Al-Fatihah + surat Juz 30 (78-114), mengikuti urutan pada formulir yang difoto.
-
-
-V1.3: Tampilan tabel mobile diperbaiki agar kolom Ulang dan Lanjut selalu terlihat tanpa geser horizontal; menu Beranda di dalam mode dihilangkan.
-
-
-V1.8: Tambah Surat untuk surat di luar Juz 30; rentang ayat dapat diubah langsung pada kartu.
-
-V1.8: tombol Tambah Surat & Ayat ditempatkan langsung di bawah kartu utama.
+Data disimpan di localStorage perangkat masing-masing. Tidak ada sinkronisasi antar perangkat.
