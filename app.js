@@ -10,35 +10,50 @@ const SURAT = [
 ];
 
 const KEY="kartu-hafalan-v1-data";
-let db=JSON.parse(localStorage.getItem(KEY)||"null")||{
+const BACKUP_TYPE="application/json";
+const isObject=value=>value!==null&&typeof value==="object"&&!Array.isArray(value);
+const defaultData=()=>({
   mode:null, font:"normal", customSurat:[],
   profiles:{
     jamaah:{identity:"",view:"table",currentIndex:0,statuses:{}},
     pembimbing:{identity:"",jamaah:[]}
   }
-};
+});
 
 // Pertahankan struktur V1.4 agar data JAMAAH dan PEMBIMBING tetap terpisah.
-function migrateData(){
-  db.profiles=db.profiles||{};
-  if(!db.profiles.jamaah) db.profiles.jamaah={identity:"",view:"table",currentIndex:0,statuses:{}};
-  if(!db.profiles.pembimbing) db.profiles.pembimbing={identity:"",jamaah:[]};
-  db.profiles.jamaah.statuses=db.profiles.jamaah.statuses||{};
-  db.profiles.pembimbing.jamaah=db.profiles.pembimbing.jamaah||[];
-  db.customSurat=Array.isArray(db.customSurat)?db.customSurat:[];
-  if(db.identity && db.mode==="jamaah" && !db.profiles.jamaah.identity) db.profiles.jamaah.identity=db.identity;
-  if(db.mode==="jamaah" && db.statuses && Object.keys(db.statuses).length && !Object.keys(db.profiles.jamaah.statuses).length) db.profiles.jamaah.statuses=db.statuses;
-  if(db.mode==="jamaah" && typeof db.view==="string") db.profiles.jamaah.view=db.view;
-  if(db.mode==="jamaah" && Number.isInteger(db.currentIndex)) db.profiles.jamaah.currentIndex=db.currentIndex;
-  if(db.identity && db.mode==="pembimbing" && !db.profiles.pembimbing.identity) db.profiles.pembimbing.identity=db.identity;
-  if(Array.isArray(db.jamaah) && !db.profiles.pembimbing.jamaah.length) db.profiles.pembimbing.jamaah=db.jamaah;
+function normalizeStatuses(statuses){
+  if(!isObject(statuses))return {};
+  return Object.fromEntries(Object.entries(statuses).filter(([,value])=>value==="ulang"||value==="lanjut"));
 }
-migrateData();
+function normalizeJamaahProfile(value){
+  const p=isObject(value)?value:{};
+  return {identity:typeof p.identity==="string"?p.identity:"",view:p.view==="large"?"large":"table",currentIndex:Number.isInteger(p.currentIndex)&&p.currentIndex>=0?p.currentIndex:0,statuses:normalizeStatuses(p.statuses)};
+}
+function normalizeMentorJamaah(value){
+  const x=isObject(value)?value:{};
+  return {name:typeof x.name==="string"?x.name:"",view:x.view==="large"?"large":"table",currentIndex:Number.isInteger(x.currentIndex)&&x.currentIndex>=0?x.currentIndex:0,statuses:normalizeStatuses(x.statuses)};
+}
+function migrateData(data){
+  const source=isObject(data)?data:defaultData(),profiles=isObject(source.profiles)?source.profiles:{};
+  const jamaah=normalizeJamaahProfile(profiles.jamaah);
+  const pembimbing={identity:isObject(profiles.pembimbing)&&typeof profiles.pembimbing.identity==="string"?profiles.pembimbing.identity:"",jamaah:Array.isArray(isObject(profiles.pembimbing)&&profiles.pembimbing.jamaah)?profiles.pembimbing.jamaah.filter(isObject).map(normalizeMentorJamaah):[]};
+  if(typeof source.identity==="string"&&source.mode==="jamaah"&&!jamaah.identity) jamaah.identity=source.identity;
+  if(source.mode==="jamaah"&&isObject(source.statuses)&&!Object.keys(jamaah.statuses).length) jamaah.statuses=normalizeStatuses(source.statuses);
+  if(source.mode==="jamaah"&&typeof source.view==="string") jamaah.view=source.view==="large"?"large":"table";
+  if(source.mode==="jamaah"&&Number.isInteger(source.currentIndex)&&source.currentIndex>=0) jamaah.currentIndex=source.currentIndex;
+  if(typeof source.identity==="string"&&source.mode==="pembimbing"&&!pembimbing.identity) pembimbing.identity=source.identity;
+  if(Array.isArray(source.jamaah)&&!pembimbing.jamaah.length) pembimbing.jamaah=source.jamaah.filter(isObject).map(normalizeMentorJamaah);
+  return {mode:source.mode==="jamaah"||source.mode==="pembimbing"?source.mode:null,font:["normal","large","xlarge"].includes(source.font)?source.font:"normal",customSurat:Array.isArray(source.customSurat)?source.customSurat.filter(s=>isObject(s)&&typeof s.id==="string"&&typeof s.name==="string").map(s=>({id:s.id,name:s.name,ayat:typeof s.ayat==="string"?s.ayat:""})):[],profiles:{jamaah,pembimbing}};
+}
+function loadData(){try{return migrateData(JSON.parse(localStorage.getItem(KEY)||"null"))}catch(_){return defaultData()}}
+let db=loadData();
 
 let deferredInstallPrompt=null;
 const isStandalone=()=>window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
-window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstallPrompt=e;renderInstallArea();});
-window.addEventListener("appinstalled",()=>{deferredInstallPrompt=null;renderInstallArea();});
+let pwaInstalled=isStandalone();
+const isPwaInstalled=()=>pwaInstalled||isStandalone();
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstallPrompt=e;renderInstallArea();renderFooter();});
+window.addEventListener("appinstalled",()=>{pwaInstalled=true;deferredInstallPrompt=null;renderInstallArea();renderFooter();});
 
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function profile(){return db.mode==="jamaah"?db.profiles.jamaah:db.profiles.pembimbing}
@@ -56,7 +71,8 @@ function totalEntries(){return entries().length}
 function layout(content,title="Kartu Hafalan",sub="Al-Qur'an"){
   return `<div class="app"><header class="header"><div class="header-row"><div class="logo">📖</div><div><div class="header-title">${title}</div><div class="header-sub">${sub}</div></div></div></header>${content}</div>`;
 }
-function footer(active){return `<nav class="footer-nav"><div class="footer-nav-inner single"><button class="${active==="settings"?"active":""}" onclick="settings()">⚙️<br>Pengaturan</button></div></nav>`}
+function footer(active){const install=isPwaInstalled()?"":`<button onclick="installApp()">📲<br>Pasang Kartu</button>`;return `<nav id="footer-nav" class="footer-nav" data-active="${active}"><div class="footer-nav-inner ${isPwaInstalled()?"single":""}">${install}<button class="${active==="settings"?"active":""}" onclick="settings()">⚙️<br>Pengaturan</button></div></nav>`}
+function renderFooter(){const el=document.getElementById("footer-nav");if(el)el.outerHTML=footer(el.dataset.active||"")}
 function render(){
   setFont();
   const root=document.getElementById("app");
@@ -67,17 +83,18 @@ function render(){
   return pembimbingHome();
 }
 function installArea(){
-  if(isStandalone())return "";
+  if(isPwaInstalled())return "";
   return `<div id="install-area" class="install-area"><button class="btn btn-secondary install-btn" onclick="installApp()">📲 PASANG KARTU HAFALAN</button><div class="small muted install-hint">Pasang di HP agar berikutnya cukup tap icon Kartu Hafalan.</div></div>`;
 }
 function renderInstallArea(){const el=document.getElementById("install-area");if(el){el.outerHTML=installArea()||""}}
 async function installApp(){
-  if(isStandalone())return;
+  if(isPwaInstalled())return;
   if(deferredInstallPrompt){
     deferredInstallPrompt.prompt();
     const result=await deferredInstallPrompt.userChoice;
     if(result.outcome==="accepted")deferredInstallPrompt=null;
     renderInstallArea();
+    renderFooter();
     return;
   }
   alert("Jika tombol pemasangan belum muncul, buka menu ⋮ Chrome lalu pilih ‘Tambahkan ke layar utama’ atau ‘Install app’.");
@@ -119,10 +136,18 @@ function addSuratButton(){return `<div class="add-surat-area"><button class="btn
 function showAddSurat(){document.getElementById("app").innerHTML=layout(`<main><button class="back" onclick="render()">← Kembali</button><div class="card"><h1>Tambah Surat</h1><p class="muted">Masukkan nama surat. Nomor ayat dapat diisi dan nanti bisa diubah langsung pada kartu.</p><div class="field"><label for="custom-name">Nama Surat</label><input id="custom-name" placeholder="Contoh: Yasin"></div><div class="field"><label for="custom-ayat">Ayat (opsional)</label><input id="custom-ayat" placeholder="Contoh: 1–12"></div><button class="btn btn-primary" style="width:100%" onclick="createSurat()">TAMBAHKAN KE KARTU</button></div></main>`)}
 function createSurat(){const name=document.getElementById("custom-name").value.trim(),ayat=document.getElementById("custom-ayat").value.trim();if(!name){alert("Silakan isi nama surat.");return}db.customSurat=db.customSurat||[];db.customSurat.push({id:`${Date.now()}-${Math.random().toString(36).slice(2,7)}`,name,ayat});save();alert(`Surat ${name} berhasil ditambahkan.`);render()}
 function updateAyat(id,value){const x=(db.customSurat||[]).find(s=>s.id===id);if(!x)return;x.ayat=value.trim();save();render()}
-function settings(){document.getElementById("app").innerHTML=layout(`<main><button class="back" onclick="render()">← Kembali</button><div class="screen-title">Pengaturan</div><div class="card"><div class="setting-row"><div><b>Ukuran Huruf</b><div class="small muted">Pengaturan tersimpan di perangkat ini.</div></div><div class="font-buttons"><button class="${db.font==="normal"?"active":""}" onclick="setFontSize('normal')">A</button><button class="${db.font==="large"?"active":""}" onclick="setFontSize('large')">A</button><button class="${db.font==="xlarge"?"active":""}" onclick="setFontSize('xlarge')">A</button></div></div><div class="setting-row"><div><b>Backup Data</b><div class="small muted">Simpan salinan data.</div></div><button class="btn btn-secondary" onclick="backup()">Backup</button></div><div class="setting-row"><div><b>Restore Data</b><div class="small muted">Kembalikan dari file backup.</div></div><button class="btn btn-secondary" onclick="document.getElementById('restore-file').click()">Restore</button></div><div class="setting-row"><div><b>Reset Data</b><div class="small muted">Hapus semua data aplikasi.</div></div><button class="btn btn-danger" onclick="resetData()">Reset</button></div></div><input id="restore-file" type="file" accept=".json,application/json" style="display:none" onchange="restore(event)"></main>${footer("settings")}`)}
+function settings(){document.getElementById("app").innerHTML=layout(`<main><button class="back" onclick="render()">← Kembali</button><div class="screen-title">Pengaturan</div><div class="card"><div class="setting-row"><div><b>Ukuran Huruf</b><div class="small muted">Pengaturan tersimpan di perangkat ini.</div></div><div class="font-buttons"><button class="${db.font==="normal"?"active":""}" onclick="setFontSize('normal')">A</button><button class="${db.font==="large"?"active":""}" onclick="setFontSize('large')">A</button><button class="${db.font==="xlarge"?"active":""}" onclick="setFontSize('xlarge')">A</button></div></div><div class="setting-row"><div><b>Backup Data</b><div class="small muted">Simpan salinan data ke perangkat.</div></div><button class="btn btn-secondary" onclick="backup()">Backup</button></div><div class="setting-row"><div><b>Simpan ke Google Drive</b><div class="small muted">Buka menu berbagi, lalu pilih Google Drive agar data aman jika HP rusak.</div></div><button class="btn btn-secondary" onclick="saveToDrive()">Simpan</button></div><div class="setting-row"><div><b>Restore Data</b><div class="small muted">Kembalikan dari file backup.</div></div><button class="btn btn-secondary" onclick="document.getElementById('restore-file').click()">Restore</button></div><div class="setting-row"><div><b>Reset Data</b><div class="small muted">Hapus semua data aplikasi.</div></div><button class="btn btn-danger" onclick="resetData()">Reset</button></div></div><input id="restore-file" type="file" accept=".json,application/json" style="display:none" onchange="restore(event)"></main>${footer("settings")}`)}
 function setFontSize(f){db.font=f;save();render()}
-function backup(){const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="KartuHafalan_Backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-function restore(e){const file=e.target.files&&e.target.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x||typeof x!=="object")throw Error();db=x;migrateData();save();render();alert("Backup berhasil dipulihkan.")}catch(_){alert("File backup tidak valid.")}};r.readAsText(file)}
+function backupFilename(prefix="KartuHafalan_Backup"){const d=new Date(),pad=n=>String(n).padStart(2,"0");return `${prefix}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}.json`}
+function backupFile(prefix){return new File([JSON.stringify(db,null,2)],backupFilename(prefix),{type:BACKUP_TYPE})}
+function downloadFile(file){const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function backup(){downloadFile(backupFile());alert("Backup berhasil diunduh. Simpan file ini di Google Drive agar tetap aman bila perangkat rusak.")}
+async function saveToDrive(){const file=backupFile();if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){try{await navigator.share({title:"Backup Kartu Hafalan",text:"Simpan file backup ini ke Google Drive.",files:[file]});alert("Menu berbagi selesai. Pastikan Anda memilih Google Drive dan proses unggahnya selesai.");return}catch(err){if(err&&err.name==="AbortError")return;alert("Tidak dapat membuka menu berbagi. File backup akan diunduh agar dapat diunggah ke Google Drive secara manual.")}}downloadFile(file);alert("File backup telah diunduh. Unggah file tersebut ke Google Drive secara manual.")}
+function validStatuses(value){return isObject(value)&&Object.values(value).every(status=>status==="ulang"||status==="lanjut")}
+function validMentorJamaah(value){return isObject(value)&&typeof value.name==="string"&&(!("statuses" in value)||validStatuses(value.statuses))&&(!("view" in value)||["table","large"].includes(value.view))&&(!("currentIndex" in value)||(Number.isInteger(value.currentIndex)&&value.currentIndex>=0))}
+function validBackup(x){if(!isObject(x)||!["mode","profiles","customSurat","identity","jamaah","statuses"].some(key=>key in x))return false;if("mode" in x&&x.mode!==null&&x.mode!=="jamaah"&&x.mode!=="pembimbing")return false;if("font" in x&&!["normal","large","xlarge"].includes(x.font))return false;if("statuses" in x&&!validStatuses(x.statuses))return false;if("jamaah" in x&&(!Array.isArray(x.jamaah)||!x.jamaah.every(validMentorJamaah)))return false;if("customSurat" in x&&(!Array.isArray(x.customSurat)||!x.customSurat.every(s=>isObject(s)&&typeof s.id==="string"&&typeof s.name==="string"&&(!("ayat" in s)||typeof s.ayat==="string"))))return false;if("profiles" in x){if(!isObject(x.profiles))return false;const j=x.profiles.jamaah,p=x.profiles.pembimbing;if(j!==undefined&&(!isObject(j)||("identity" in j&&typeof j.identity!=="string")||("statuses" in j&&!validStatuses(j.statuses))))return false;if(p!==undefined&&(!isObject(p)||("identity" in p&&typeof p.identity!=="string")||("jamaah" in p&&(!Array.isArray(p.jamaah)||!p.jamaah.every(validMentorJamaah)))))return false}return true}
+function backupSummary(data){const p=data.profiles;return `Profil jamaah: ${p.jamaah.identity||"belum diisi"}; pembimbing: ${p.pembimbing.identity||"belum diisi"}; ${p.pembimbing.jamaah.length} jamaah bimbingan; ${data.customSurat.length} surat tambahan.`}
+function restore(e){const input=e.target,file=input.files&&input.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{const raw=JSON.parse(r.result);if(!validBackup(raw))throw Error();const restored=migrateData(raw);if(!confirm(`Backup akan menimpa data aplikasi saat ini.\n\n${backupSummary(restored)}\n\nCadangan data saat ini akan diunduh terlebih dahulu. Lanjutkan?`))return;downloadFile(backupFile("KartuHafalan_SebelumRestore"));db=restored;save();render();alert("Backup berhasil dipulihkan. Cadangan data sebelum restore juga telah diunduh.")}catch(_){alert("File backup tidak valid atau strukturnya tidak didukung.")}finally{input.value=""}};r.readAsText(file)}
 function resetData(){if(confirm("Hapus semua data aplikasi?")){localStorage.removeItem(KEY);location.reload()}}
 
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").then(r=>r.update()).catch(()=>{}));
